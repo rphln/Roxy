@@ -1,6 +1,7 @@
 import re
+from multiprocessing import Pool
 from os import environ
-from typing import Dict, NamedTuple, Optional
+from typing import Dict, NamedTuple, Optional, TypedDict
 from urllib import parse as urlparse
 from urllib.parse import urljoin, urlparse
 
@@ -172,7 +173,8 @@ def handle_pixiv_interaction(interaction: Dict):
         case _:
             urls = []
 
-    embeds = list(map(handle_pixiv_gallery_request, urls))
+    with Pool() as pool:
+        embeds = pool.map(handle_pixiv_gallery_request, urls)
 
     session.post(
         webhook.endpoint,
@@ -182,6 +184,9 @@ def handle_pixiv_interaction(interaction: Dict):
             "embeds": embeds,
         },
     )
+
+    interaction_ = Interaction(interaction["application_id"], interaction["token"])
+    session.delete(interaction_.original_response_endpoint)
 
 
 @app.route("/interactions", methods=["POST"])
