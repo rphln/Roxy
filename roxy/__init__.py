@@ -1,10 +1,10 @@
 import re
-from multiprocessing import Pool
+from multiprocessing import Pool, Process
 from os import environ
 from typing import Dict, NamedTuple, Optional, TypedDict
 from urllib import parse as urlparse
 from urllib.parse import urljoin, urlparse
-
+from threading import Thread
 from discord_interactions import (
     InteractionResponseType,
     InteractionType,
@@ -198,7 +198,12 @@ def interactions():
         case {"type": InteractionType.PING}:
             return jsonify({"type": InteractionResponseType.PONG})
         case {"type": InteractionType.APPLICATION_COMMAND, "data": {"name": "pixiv"}}:
-            handle_pixiv_interaction(interaction=request.json)
+            task = Process(
+                target=handle_pixiv_interaction,
+                kwargs={"interaction": request.json},
+            )
+            task.start()
+            # handle_pixiv_interaction(interaction=request.json)
         case _:
             pass
 
