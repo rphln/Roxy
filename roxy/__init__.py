@@ -1,10 +1,10 @@
 import re
 from multiprocessing import Pool, Process
 from os import environ
-from typing import Dict, NamedTuple, Optional, TypedDict
+from typing import Dict, NamedTuple, Optional
 from urllib import parse as urlparse
-from urllib.parse import urljoin, urlparse
-from threading import Thread
+from urllib.parse import urlparse
+
 from discord_interactions import (
     InteractionResponseType,
     InteractionType,
@@ -142,7 +142,8 @@ def handle_pixiv_gallery_request(id: str) -> Dict:
     }
 
 
-def handle_pixiv_interaction(interaction: Dict):
+# TODO: Merge `interaction` dict and `Interaction`.
+def handle_pixiv_interaction(interaction: Dict, interaction_: Interaction):
     webhook = find_webhook(
         session,
         interaction["application_id"],
@@ -173,6 +174,7 @@ def handle_pixiv_interaction(interaction: Dict):
         case _:
             urls = []
 
+    # TODO: Check if using processes is actually beneficial.
     with Pool() as pool:
         embeds = pool.map(handle_pixiv_gallery_request, urls)
 
@@ -185,25 +187,25 @@ def handle_pixiv_interaction(interaction: Dict):
         },
     )
 
-    interaction_ = Interaction(interaction["application_id"], interaction["token"])
     session.delete(interaction_.original_response_endpoint)
 
 
 @app.route("/interactions", methods=["POST"])
 @verify_key_decorator(app.config["CLIENT_PUBLIC_KEY"])
 def interactions():
-    EPHEMERAL: int = 1 << 6
+    interaction = Interaction(request.json["application_id"], request.json["token"])
 
     match request.json:
         case {"type": InteractionType.PING}:
             return jsonify({"type": InteractionResponseType.PONG})
         case {"type": InteractionType.APPLICATION_COMMAND, "data": {"name": "pixiv"}}:
+            # Discord expects a response as soon as possible, so we need to run this
+            # lengthy task on another process.
             task = Process(
                 target=handle_pixiv_interaction,
-                kwargs={"interaction": request.json},
+                kwargs={"interaction": request.json, "interaction_": interaction},
             )
             task.start()
-            # handle_pixiv_interaction(interaction=request.json)
         case _:
             pass
 
